@@ -16,6 +16,33 @@ class DataApp(tk.Tk):
         self.style = ttk.Style(self)
         self.style.theme_use('clam')
 
+        # Theme colors
+        self.light_theme = {
+            "background": "#f0f0f0",
+            "foreground": "#000000",
+            "button_background": "#e1e1e1",
+            "button_foreground": "#000000",
+            "entry_background": "#ffffff",
+            "text_background": "#ffffff",
+            "text_foreground": "#000000",
+            "listbox_background": "#ffffff",
+            "listbox_foreground": "#000000",
+            "highlight_color": "#0078d7"
+        }
+        self.dark_theme = {
+            "background": "#2e2e2e",
+            "foreground": "#ffffff",
+            "button_background": "#444444",
+            "button_foreground": "#ffffff",
+            "entry_background": "#3c3c3c",
+            "text_background": "#3c3c3c",
+            "text_foreground": "#ffffff",
+            "listbox_background": "#3c3c3c",
+            "listbox_foreground": "#ffffff",
+            "highlight_color": "#3399ff"
+        }
+        self.current_theme = "light"
+
         self.data_dir = "./data"
         self.df = None
         self.pkl_files = []
@@ -24,6 +51,8 @@ class DataApp(tk.Tk):
         self.selected_display_columns = []
 
         self.create_widgets()
+        self.create_theme_toggle()
+        self.apply_theme()
 
     def create_widgets(self):
         tab_control = ttk.Notebook(self)
@@ -39,6 +68,70 @@ class DataApp(tk.Tk):
         self.create_load_tab()
         self.create_select_tab()
         self.create_report_tab()
+
+    def create_theme_toggle(self):
+        # Add a theme toggle button at the top right corner
+        self.theme_var = tk.StringVar(value=self.current_theme)
+        toggle_frame = ttk.Frame(self)
+        toggle_frame.place(relx=1.0, rely=0.0, anchor='ne', x=-10, y=10)
+        self.theme_button = ttk.Button(toggle_frame, text="Switch to Dark Theme", command=self.toggle_theme)
+        self.theme_button.pack()
+
+    def toggle_theme(self):
+        if self.current_theme == "light":
+            self.current_theme = "dark"
+            self.theme_button.config(text="Switch to Light Theme")
+        else:
+            self.current_theme = "light"
+            self.theme_button.config(text="Switch to Dark Theme")
+        self.apply_theme()
+
+    def apply_theme(self):
+        theme = self.light_theme if self.current_theme == "light" else self.dark_theme
+
+        # Configure overall background
+        self.configure(bg=theme["background"])
+
+        # Style configuration for ttk widgets
+        self.style.configure('TFrame', background=theme["background"])
+        self.style.configure('TLabel', background=theme["background"], foreground=theme["foreground"])
+        self.style.configure('TButton', background=theme["button_background"], foreground=theme["button_foreground"])
+        self.style.map('TButton',
+                       background=[('active', theme["highlight_color"])],
+                       foreground=[('active', theme["button_foreground"])])
+        self.style.configure('TEntry', fieldbackground=theme["entry_background"], foreground=theme["foreground"])
+        self.style.configure('TCombobox', fieldbackground=theme["entry_background"], foreground=theme["foreground"])
+        self.style.configure('TNotebook', background=theme["background"])
+        self.style.configure('TNotebook.Tab', background=theme["button_background"], foreground=theme["foreground"])
+        self.style.map('TNotebook.Tab',
+                       background=[('selected', theme["highlight_color"])],
+                       foreground=[('selected', theme["foreground"])])
+
+        # Update widgets background and foreground colors
+        def recursive_configure(widget):
+            for child in widget.winfo_children():
+                cls = child.winfo_class()
+                # Skip ttk widgets for direct config, style them via ttk.Style
+                if cls in ['Frame', 'Label', 'Button', 'Entry', 'Text', 'Listbox']:
+                    if cls == 'Frame':
+                        child.configure(background=theme["background"])
+                    elif cls == 'Label':
+                        child.configure(background=theme["background"], foreground=theme["foreground"])
+                    elif cls == 'Button':
+                        # ttk buttons styled by style, skip
+                        pass
+                    elif cls == 'Entry':
+                        try:
+                            child.configure(background=theme["entry_background"], foreground=theme["foreground"])
+                        except:
+                            pass
+                    elif cls == 'Text':
+                        child.configure(background=theme["text_background"], foreground=theme["text_foreground"], insertbackground=theme["foreground"])
+                    elif cls == 'Listbox':
+                        child.configure(background=theme["listbox_background"], foreground=theme["listbox_foreground"], selectbackground=theme["highlight_color"])
+                recursive_configure(child)
+
+        recursive_configure(self)
 
     def create_load_tab(self):
         frame = ttk.Frame(self.tab_load, padding=20)
