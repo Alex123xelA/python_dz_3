@@ -55,19 +55,181 @@ class DataApp(tk.Tk):
         self.apply_theme()
 
     def create_widgets(self):
-        tab_control = ttk.Notebook(self)
-        self.tab_load = ttk.Frame(tab_control)
-        self.tab_select = ttk.Frame(tab_control)
-        self.tab_report = ttk.Frame(tab_control)
+        # Create main menu frame
+        self.main_menu_frame = ttk.Frame(self, padding=20)
+        self.main_menu_frame.pack(fill='both', expand=True)
 
-        tab_control.add(self.tab_load, text='Load Data')
-        tab_control.add(self.tab_select, text='Select Data')
-        tab_control.add(self.tab_report, text='Generate Report')
-        tab_control.pack(expand=1, fill='both')
+        ttk.Label(self.main_menu_frame, text="Main Menu", font=("Arial", 18)).pack(pady=20)
+
+        ttk.Button(self.main_menu_frame, text="Load Data", command=self.show_load_tab).pack(pady=10, ipadx=10, ipady=5)
+        ttk.Button(self.main_menu_frame, text="Select Data", command=self.show_select_tab).pack(pady=10, ipadx=10, ipady=5)
+        ttk.Button(self.main_menu_frame, text="Generate Report", command=self.show_report_tab).pack(pady=10, ipadx=10, ipady=5)
+
+        # Create frames for each section but do not pack yet
+        self.tab_load = ttk.Frame(self, padding=20)
+        self.tab_select = ttk.Frame(self, padding=20)
+        self.tab_report = ttk.Frame(self, padding=10)
 
         self.create_load_tab()
         self.create_select_tab()
         self.create_report_tab()
+
+        # Initially hide all section frames
+        self.tab_load.pack_forget()
+        self.tab_select.pack_forget()
+        self.tab_report.pack_forget()
+
+    def show_main_menu(self):
+        self.main_menu_frame.pack(fill='both', expand=True)
+        self.tab_load.pack_forget()
+        self.tab_select.pack_forget()
+        self.tab_report.pack_forget()
+
+    def show_load_tab(self):
+        self.main_menu_frame.pack_forget()
+        self.tab_load.pack(fill='both', expand=True)
+        self.add_back_button(self.tab_load)
+
+    def show_select_tab(self):
+        self.main_menu_frame.pack_forget()
+        self.tab_select.pack(fill='both', expand=True)
+        self.add_back_button(self.tab_select)
+
+    def show_report_tab(self):
+        self.main_menu_frame.pack_forget()
+        self.tab_report.pack(fill='both', expand=True)
+        self.add_back_button(self.tab_report)
+        self.prepare_report_tab()
+
+    def add_back_button(self, parent_frame):
+        # Remove existing back button if any
+        for child in parent_frame.winfo_children():
+            if getattr(child, 'is_back_button', False):
+                child.destroy()
+        back_btn = ttk.Button(parent_frame, text="Back to Main Menu", command=self.show_main_menu)
+        back_btn.is_back_button = True
+        back_btn.pack(anchor='ne', pady=5, padx=5)
+
+    def update_filter_value_entries(self):
+        # Clear previous entries
+        for widget in self.filter_values_container.winfo_children():
+            widget.destroy()
+        self.filter_entries.clear()
+
+        selected_indices = self.filter_listbox.curselection()
+        for idx in selected_indices:
+            col = self.filter_listbox.get(idx)
+            label = ttk.Label(self.filter_values_container, text=f"Values for {col}:")
+            label.pack(anchor='w', padx=5, pady=2)
+
+            # Create listbox with unique values from dataframe column for multiple selection
+            values = []
+            if self.df is not None and col in self.df.columns:
+                values = sorted(self.df[col].dropna().astype(str).unique().tolist())
+            listbox = tk.Listbox(self.filter_values_container, selectmode='multiple', exportselection=0, height=min(10, len(values)))
+            for val in values:
+                listbox.insert(tk.END, val)
+            listbox.pack(fill='x', padx=5, pady=2)
+            self.filter_entries[col] = listbox
+
+    def update_filter_value_entries(self):
+        # Clear previous entries
+        for widget in self.filter_values_container.winfo_children():
+            widget.destroy()
+        self.filter_entries.clear()
+
+        selected_indices = self.filter_listbox.curselection()
+        for idx in selected_indices:
+            col = self.filter_listbox.get(idx)
+            label = ttk.Label(self.filter_values_container, text=f"Value for {col}:")
+            label.pack(anchor='w', padx=5, pady=2)
+
+            # Create combobox with unique values from dataframe column
+            values = []
+            if self.df is not None and col in self.df.columns:
+                values = sorted(self.df[col].dropna().astype(str).unique().tolist())
+            combobox = ttk.Combobox(self.filter_values_container, values=values, state='readonly')
+            combobox.pack(fill='x', padx=5, pady=2)
+            if values:
+                combobox.current(0)
+            self.filter_entries[col] = combobox
+
+    def generate_text_report(self):
+        if self.df is None:
+            messagebox.showerror("Error", "No DataFrame loaded.")
+            return
+        filter_cols = [self.filter_listbox.get(i) for i in self.filter_listbox.curselection()]
+        if not filter_cols:
+            messagebox.showerror("Error", "Select at least one filter column.")
+            return
+        criteria = {}
+        for col in filter_cols:
+            listbox = self.filter_entries.get(col)
+            if listbox:
+                selected_indices = listbox.curselection()
+                if not selected_indices:
+                    messagebox.showerror("Error", f"Select at least one value for filter column '{col}'.")
+                    return
+                selected_values = [listbox.get(i).strip() for i in selected_indices]
+                criteria[col] = selected_values
+            else:
+                messagebox.showerror("Error", f"Filter values for '{col}' are missing.")
+                return
+        display_cols = [self.display_listbox.get(i) for i in self.display_listbox.curselection()]
+        if not display_cols:
+            messagebox.showerror("Error", "Select at least one display column.")
+            return
+
+        mask = pd.Series(True, index=self.df.index)
+        for col, vals in criteria.items():
+            mask &= self.df[col].astype(str).isin(vals)
+
+        result = self.df.loc[mask, display_cols]
+        self.report_text.config(state='normal')
+        self.report_text.delete('1.0', tk.END)
+        if result.empty:
+            self.report_text.insert(tk.END, "No data matching the filters.\n")
+        else:
+            self.report_text.insert(tk.END, result.to_string())
+        self.report_text.config(state='disabled')
+
+    def generate_text_report(self):
+        if self.df is None:
+            messagebox.showerror("Error", "No DataFrame loaded.")
+            return
+        filter_cols = [self.filter_listbox.get(i) for i in self.filter_listbox.curselection()]
+        if not filter_cols:
+            messagebox.showerror("Error", "Select at least one filter column.")
+            return
+        criteria = {}
+        for col in filter_cols:
+            val = self.filter_entries.get(col)
+            if val:
+                v = val.get().strip()
+                if v == "":
+                    messagebox.showerror("Error", f"Filter value for '{col}' is empty.")
+                    return
+                criteria[col] = v
+            else:
+                messagebox.showerror("Error", f"Filter value for '{col}' is missing.")
+                return
+        display_cols = [self.display_listbox.get(i) for i in self.display_listbox.curselection()]
+        if not display_cols:
+            messagebox.showerror("Error", "Select at least one display column.")
+            return
+
+        mask = pd.Series(True, index=self.df.index)
+        for col, val in criteria.items():
+            mask &= self.df[col].astype(str) == val
+
+        result = self.df.loc[mask, display_cols]
+        self.report_text.config(state='normal')
+        self.report_text.delete('1.0', tk.END)
+        if result.empty:
+            self.report_text.insert(tk.END, "No data matching the filters.\n")
+        else:
+            self.report_text.insert(tk.END, result.to_string())
+        self.report_text.config(state='disabled')
 
     def create_theme_toggle(self):
         # Add a theme toggle button at the top right corner
@@ -321,9 +483,16 @@ class DataApp(tk.Tk):
             col = self.filter_listbox.get(idx)
             label = ttk.Label(self.filter_values_container, text=f"Value for {col}:")
             label.pack(anchor='w', padx=5, pady=2)
-            entry = ttk.Entry(self.filter_values_container)
-            entry.pack(fill='x', padx=5, pady=2)
-            self.filter_entries[col] = entry
+
+            # Create combobox with unique values from dataframe column
+            values = []
+            if self.df is not None and col in self.df.columns:
+                values = sorted(self.df[col].dropna().astype(str).unique().tolist())
+            combobox = ttk.Combobox(self.filter_values_container, values=values, state='readonly')
+            combobox.pack(fill='x', padx=5, pady=2)
+            if values:
+                combobox.current(0)
+            self.filter_entries[col] = combobox
 
     def generate_text_report(self):
         if self.df is None:
