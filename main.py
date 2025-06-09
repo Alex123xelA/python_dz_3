@@ -132,12 +132,6 @@ class DataApp(tk.Tk):
             listbox.pack(fill='x', padx=5, pady=2)
             self.filter_entries[col] = listbox
 
-    def update_filter_value_entries(self):
-        # Clear previous entries
-        for widget in self.filter_values_container.winfo_children():
-            widget.destroy()
-        self.filter_entries.clear()
-
         selected_indices = self.filter_listbox.curselection()
         for idx in selected_indices:
             col = self.filter_listbox.get(idx)
@@ -153,45 +147,6 @@ class DataApp(tk.Tk):
             if values:
                 combobox.current(0)
             self.filter_entries[col] = combobox
-
-    def generate_text_report(self):
-        if self.df is None:
-            messagebox.showerror("Error", "No DataFrame loaded.")
-            return
-        filter_cols = [self.filter_listbox.get(i) for i in self.filter_listbox.curselection()]
-        if not filter_cols:
-            messagebox.showerror("Error", "Select at least one filter column.")
-            return
-        criteria = {}
-        for col in filter_cols:
-            listbox = self.filter_entries.get(col)
-            if listbox:
-                selected_indices = listbox.curselection()
-                if not selected_indices:
-                    messagebox.showerror("Error", f"Select at least one value for filter column '{col}'.")
-                    return
-                selected_values = [listbox.get(i).strip() for i in selected_indices]
-                criteria[col] = selected_values
-            else:
-                messagebox.showerror("Error", f"Filter values for '{col}' are missing.")
-                return
-        display_cols = [self.display_listbox.get(i) for i in self.display_listbox.curselection()]
-        if not display_cols:
-            messagebox.showerror("Error", "Select at least one display column.")
-            return
-
-        mask = pd.Series(True, index=self.df.index)
-        for col, vals in criteria.items():
-            mask &= self.df[col].astype(str).isin(vals)
-
-        result = self.df.loc[mask, display_cols]
-        self.report_text.config(state='normal')
-        self.report_text.delete('1.0', tk.END)
-        if result.empty:
-            self.report_text.insert(tk.END, "No data matching the filters.\n")
-        else:
-            self.report_text.insert(tk.END, result.to_string())
-        self.report_text.config(state='disabled')
 
     def generate_text_report(self):
         if self.df is None:
